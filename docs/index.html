@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<!-- A Very Basic CSS-->
+<style>
+	div>* {
+		margin-left: auto;
+		margin-right: auto;
+	}
+	div {
+		display: flex;
+		align-items: center;
+	}
+	h1 {
+		text-align: center;
+	}
+	/*Basic dark-mode support*/
+	@media (prefers-color-scheme: dark){
+		body{
+		background-color: black;
+		color: white;
+		}
+	}
+</style>
+
+<head>
+<!--Tell browsers to stop looking for non-existant 'favicon.ico' file (they shouldn't be doing it anyway but hey ho)-->
+<link rel="icon" href="data:,">
+</head>
+<html>
+<script>
+
+
+
+var v = 16;
+var V =	16;
+var k = 16;
+var K = 16;
+var z = 1;
+var Z = 1;
+let w = v * V;
+let h = k * K;
+const amount_combinator = (...a)=> (T) => a.reduce((a,c)=> a*c) * (T.BYTES_PER_ELEMENT) ** (a.length);
+
+
+			//	Set-Up the shader module
+			let [vertex_location] = [0];
+				let vertex_entry_point_identifier	= "vertex_main";
+				let fragment_entry_point_identifier = "fragment_main";
+				let shader_module_code 			= 
+`
+@group(0)	@binding(1) var Sampler :	sampler;
+@group(0)	@binding(0) var Texture	:	texture_2d<f32>;
+
+struct vertex_stage_struct {
+	@location(${vertex_location}) position_data : vec4<f32>,
+}
+struct fragment_stage_struct {
+	@builtin(position) 				position_data 			: vec4<f32>,
+	@location(0)					other_position_data		:	vec2f
+}
+@vertex
+fn ${vertex_entry_point_identifier}(input : vertex_stage_struct) -> fragment_stage_struct {
+	var output : fragment_stage_struct;
+	output.position_data 	=  input.position_data;
+	output.other_position_data 	=  vec2<f32>(input.position_data[0],input.position_data[1]);
+	return output;
+}
+@fragment
+fn ${fragment_entry_point_identifier}(input:	fragment_stage_struct) -> @location(0) vec4<f32> {
+	return vec4<f32>(0,0,0,0) + textureSample(Texture,Sampler,vec2f( .5 *(1 + 	input.other_position_data[0]), .5 *(1 + input.other_position_data[1])) );
+};
+
+`;
+
+
+
+class stack{
+	#gpu;
+	#adaptor;
+	#device;
+
+
+	get gpu(){return this.#gpu}
+	get adaptor(){return this.#adaptor;} // for the brits
+	get adapter(){return this.adaptor;} // for the americans / api purists
+	get device(){return this.#device;}
+
+	async request(){
+		this.#gpu		=	self?.navigator?.gpu;
+			this.#adaptor 	= 	await (this.#gpu)?.requestAdapter();
+				this.#device	=	await	(this.#adaptor)?.requestDevice();
+	}
+
+}
+class gol_state_of_stack{
+// Setting up the code for the conway_operations
+
+static get conway_code(){return `
+@group(0) @binding(0) var<storage, read_write> conway_config	:  conway_config_struct;
+@group(0) @binding(1) var<storage, read_write> conway_table_in	:  conway_struct;
+@group(0) @binding(2) var<storage, read_write> conway_table_out	:  conway_struct;
+@group(0) @binding(3) var<storage, read_write> texture_data		:  texture_struct;
+
+struct texture_struct {
+	underlying_buffer	: 	array<u32>,
+}
+
+struct conway_struct {
+	underlying_buffer	: 	array<u32>,
+}
+
+struct conway_config_struct {
+	width				:	u32,
+	height				:	u32,
+}
+
+fn get_key(a :u32, b : u32) -> u32 { return a * conway_config.height + b;}
+fn life_at_key(k: u32) -> u32 {return conway_table_in.underlying_buffer[k];}
+fn life_around(a :u32, b : u32) -> u32 {return life_at_key(get_key(a-1,b-1)) + life_at_key(get_key(a,b-1)) + life_at_key(get_key(a+1,b-1)) + life_at_key(get_key(a+1,b)) + life_at_key(get_key(a,b+1)) + life_at_key(get_key(a-1,b+1)) + life_at_key(get_key(a-1,b));}
+fn rgba(r:u32,g:u32,b:u32,a:u32)->u32 {return (r*255) + g*65025 + b* 16581375 + a * 16777216;}
+fn v(r:u32)->u32 {return r;}
+@compute @workgroup_size(${v},${k},${z})
+	fn my_fn(
+				@builtin(local_invocation_id)		local_invocation_id		:	vec3<u32>,
+				@builtin(local_invocation_index)	local_invocation_index	:	u32,
+				@builtin(global_invocation_id)		global_invocation_id	:	vec3<u32>,
+				@builtin(workgroup_id)				workgroup_id			:	vec3<u32>,
+				@builtin(num_workgroups)			num_workgroups			:	vec3<u32>
+			){
+				var I 	= 	global_invocation_id.x;
+				var J	=	global_invocation_id.y;
+				var K	=	global_invocation_id.z;
+
+				
+
+				var key = get_key(I,J);
+				var current_life = life_at_key(key);
+				var current_surround = life_around(I,J);
+
+				var life_next = current_surround == 3 || (bool(current_life) && current_surround == 2);
+				conway_table_out.underlying_buffer[key] = u32(life_next);
+		
+		
+
+	}
+@compute @workgroup_size(${v},${k},${z})
+	fn my_fnii	(
+					@builtin(global_invocation_id) global_invocation_id : vec3<u32>,
+					@builtin(local_invocation_id)	local_invocation_id		: vec3<u32>
+				){
+		// Note the boundries give this block control only over the interior, not the boundry of the game.
+		for(var i : u32 = 0;	i < 1;	i ++){
+			for(var j	:	u32 = 0;j < 1; j ++){
+				var I 	= 	global_invocation_id.x;
+				var J	=	global_invocation_id.y;
+				var k = get_key(I,J);
+				var x = conway_table_out.underlying_buffer[k];
+				texture_data.underlying_buffer[k] = rgba(x,u32(0),u32(x),u32(255));
+
+			}
+		}
+
+	}
+				`
+	}
+	#stack;
+
+	//Buffers
+	config_buffer;
+
+	//dimensions
+	x	=	w;
+	y	=	h;
+
+
+	parity=false;
+	conway_buffer_a;
+	conway_buffer_b;
+
+	pipeline;
+	pipelinei;
+
+	get active_buffer(){return (this.parity) ? this.conway_buffer_a : this.conway_buffer_b;};
+
+	async request(cw_module){
+	
+	
+	
+	
+		const stack = ()=> this.#stack;
+			const	my_webgpu_gpu		=	()=> stack().gpu;
+			const	my_webgpu_device	=	()=> stack().device;
+			const	my_webgpu_adaptor	=	()=> stack().adaptor;
+		
+		const	state	=	()=>this;
+
+		const	conway_buffer_a		=	()=>state().conway_buffer_a;
+		const	conway_buffer_b		=	()=>state().conway_buffer_b;
+		const	config_buffer		=	()=>state().config_buffer;
+		const 	x 	=()=>this.x;
+		const	y	=()=>this.y;
+		let 	amount = ()=>amount_combinator(x(),y())(Uint8Array)
+
+
+		state().config_buffer = await this.#stack.device.createBuffer({size: amount_combinator(2)(Uint32Array),mappedAtCreation: true,usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC});
+			//TODO -> possibly refactor from a storage buffer to something else
+			let mapped_config = config_buffer().getMappedRange(); 
+					new Uint32Array(mapped_config).set([x(),y()]);
+					config_buffer().unmap();
+		let [mapped_conway_buffer_config,unmapped_conway_buffer_config] = ((x)=> [{...x,mappedAtCreation: true},{...x,mappedAtCreation: false}])({size: 4 * amount(),usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC})
+		state().conway_buffer_a			= await my_webgpu_device().createBuffer(mapped_conway_buffer_config);
+		state().conway_buffer_b 		= await my_webgpu_device().createBuffer(unmapped_conway_buffer_config);
+		let mapped_texture_buffer = conway_buffer_a().getMappedRange();
+				new Uint32Array(mapped_texture_buffer).set(Uint32Array.from ({length: amount()},(e,i,a) => (Math.random() >= 0.7)));
+				conway_buffer_a().unmap();
+
+		let [cw_step_pipeline_config,cw_to_txb_pipeline_config] 	= [`my_fn`,`my_fnii`].map(e => ({layout: `auto`, compute: {module: cw_module, entryPoint: e}}));
+
+		this.pipeline 			= my_webgpu_device().createComputePipeline(cw_step_pipeline_config);
+		this.pipelinei 			= my_webgpu_device().createComputePipeline(cw_to_txb_pipeline_config);
+		
+		const cw_step_pipeline = ()=>this.pipeline;
+			
+	}
+
+	destroy(){
+		["#device","#adaptor"].forEach(s => this[s]?.destroy());
+	}
+	constructor(stack){
+		this.#stack	= stack;
+	}
+
+}
+
+class texture_state_of_stack{
+	#stack;
+
+	texture_buffer;
+	position_buffer;
+	async	request(){
+		const stack = ()=> this.#stack;
+			const	texture=()=>this.texture;
+
+
+			const	my_webgpu_gpu		=	()=> stack().gpu;
+			const	my_webgpu_device	=	()=> stack().device;
+			const	my_webgpu_adaptor	=	()=> stack().adaptor;
+			let [mapped_conway_buffer_config,unmapped_conway_buffer_config] = ((x)=> [{...x,mappedAtCreation: true},{...x,mappedAtCreation: false}])({size: 4 * w*h,usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC})
+			this.texture_buffer = await my_webgpu_device().createBuffer(unmapped_conway_buffer_config);
+
+			let number_of_vertexes = 4;
+				let position_buffer_config = {size: amount_combinator(4)(Float32Array) * number_of_vertexes, usage:GPUBufferUsage.VERTEX, mappedAtCreation: true};
+				let position_buffer=my_webgpu_device().createBuffer(position_buffer_config);
+
+
+	}
+
+
+	constructor(stack){
+		this.#stack	= stack;
+	}
+}
+
+
+
+
+	class GPU_GOL{
+		#stack			=	new	stack;
+		#state			=	new gol_state_of_stack(this.#stack);
+		#texture_state	=	new	texture_state_of_stack(this.#stack);
+
+		async setup(canvas){
+			let context	=	canvas.getContext("webgpu"); 
+			let parity = true;
+			const state = ()=>this.#state;
+			const tex_state = ()=>this.#texture_state;
+			const stack = ()=> this.#stack;// {let s = this.#stack; return ({	get["gpu"](){return s.gpu},	get["device"](){return s.device},	get["adaptor"](){return s.adapter},	 get["adapter"](){return this.adaptor} })};
+
+			const	my_webgpu_gpu		=	()=> stack().gpu;
+			const	my_webgpu_device	=	()=> stack().device;
+			const	my_webgpu_adaptor	=	()=> stack().adaptor;
+
+			const	config_buffer		=	()=>state().config_buffer;
+			const	conway_buffer_a		=	()=>state().conway_buffer_a;
+			const	conway_buffer_b		=	()=>state().conway_buffer_b;
+			const	conway_texture_buffer = ()=>tex_state().texture_buffer;
+
+			await	stack().request();
+
+					// Seting up the canvas_context
+					let webgpu_swapchain_format = "bgra8unorm";
+					let webgpu_context_config={device:my_webgpu_device(), format:webgpu_swapchain_format, usage:GPUTextureUsage.RENDER_ATTACHMENT, alphaMode:"premultiplied"}
+					context.configure(webgpu_context_config);
+
+			const conway_code = gol_state_of_stack.conway_code;
+				let conway_module_config = {code: conway_code};
+				let conway_module = await my_webgpu_device().createShaderModule(conway_module_config);
+
+
+			await	state().request(conway_module);
+			await	tex_state().request();
+				const 	my_texture_config = ()=>({width: w,height: h});
+
+			let amount = amount_combinator(my_texture_config().width,my_texture_config().height)(Uint8Array)
+			console.log(amount);
+
+			let	cw_step_pipeline = state().pipeline;
+			let cw_step_pipelineii = state().pipelinei;
+			let cw_step_bg_a, cw_step_bg_b;
+				[cw_step_bg_a,cw_step_bg_b] = [[1,2],[2,1]].map(([i,j]) =>my_webgpu_device().createBindGroup({
+					layout:	cw_step_pipeline.getBindGroupLayout(0),
+					entries: [
+						{binding:0, resource: {buffer: config_buffer()}},
+						{binding:i, resource: {buffer: conway_buffer_a()}},
+						{binding:j, resource: {buffer: conway_buffer_b()}},
+					]
+				}));
+
+				let get_bind = () => parity ? cw_step_bg_a : cw_step_bg_b;
+				
+				let conway_to_texture_BG = my_webgpu_device().createBindGroup({
+					layout:	cw_step_pipelineii.getBindGroupLayout(0),
+					entries: [
+						{binding:0, resource: {buffer: config_buffer()}},
+						{binding:2, resource: {buffer: conway_buffer_b()}},
+						{binding:3, resource: {buffer: conway_texture_buffer()}},
+					]
+				});
+
+				console.log(cw_step_pipeline.getBindGroupLayout(0));
+
+
+
+	
+				let shader_module_code_config	= {code: shader_module_code};
+				let shader_module				= await my_webgpu_device().createShaderModule(shader_module_code_config);
+
+				//Set up the vertex and fragment states
+				let	my_webgpu_vertex_state={module:shader_module, entryPoint:`${vertex_entry_point_identifier}`, buffers:[{arrayStride: 4*4, attributes:[ {format: "float32x4", offset:0, shaderLocation:vertex_location}]}]};
+				let my_webgpu_fragment_state={module:shader_module, entryPoint:`${fragment_entry_point_identifier}`, targets:[{format:webgpu_swapchain_format}]};
+
+
+								//Set up the depth Stencil
+								let my_webgpu_depth_format="depth24plus-stencil8";
+    			let my_webgpu_depth_texture_config={size:{width:w, height:h}, format:my_webgpu_depth_format, usage: GPUTextureUsage.RENDER_ATTACHMENT};
+        		let my_webgpu_depth_texture = await my_webgpu_device().createTexture(my_webgpu_depth_texture_config);
+				//Create the View
+				let my_webgpu_view=my_webgpu_depth_texture.createView();
+				//Set Up the Render-Pass descriptor
+				let my_webgpu_render_pass_descriptor = {colorAttachments:[{view:undefined, loadOp:"clear",clearValue:[0,0,0,1], storeOp:"store"}], depthStencilAttachment: {view: my_webgpu_view, depthLoadOp:"clear", depthClearValue:1, depthStoreOp:"store", stencilLoadOp:"clear", stencilClearValue:0, stencilStoreOp:"store"}};
+				//Set up the Pipeline
+				let my_webgpu_pipeline_layout	= `auto`
+				let my_webgpu_render_pipeline_config={layout:my_webgpu_pipeline_layout, vertex: my_webgpu_vertex_state, fragment:my_webgpu_fragment_state,primitive:{topology: "triangle-strip"}, depthStencil:{format: my_webgpu_depth_format,depthWriteEnabled: true, depthCompare:"less"}, unclippedDepth:true};
+				let my_webgpu_render_pipeline=my_webgpu_device().createRenderPipeline(my_webgpu_render_pipeline_config);
+				//Set up a webgpu buffer to store our vertex-data
+				let number_of_vertexes = 4;
+				let position_buffer_config = {size: amount_combinator(4)(Float32Array) * number_of_vertexes, usage:GPUBufferUsage.VERTEX, mappedAtCreation: true};
+				let position_buffer=my_webgpu_device().createBuffer(position_buffer_config);
+				new Float32Array(position_buffer.getMappedRange()).set([[-1,-1,0,1],[1,-1,0,1],[-1,1,0,1],[1,1,0,1]].flat());
+					position_buffer.unmap();
+
+//Create Our Texture and Binding
+					// Create the texture object					
+					let texture_data = new Uint8Array(w * h * 4);
+						texture_data.set(Array.from({length: w * h}).map(z => [255,255,0,255]).flat());	//	Debug Texture Is Yellow.
+					let texture_config = {size: [w,h], format:"rgba8unorm", usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST};
+					let texture  = my_webgpu_device().createTexture(texture_config);
+					let texture_view = texture.createView();
+						my_webgpu_device().queue.writeTexture(
+							{texture},texture_data,{bytesPerRow: h * 4 * 1},{width:w,height:h}
+					)
+					//Create a Sampler
+					let webgpu_sampler = my_webgpu_device().createSampler();
+
+
+
+				//Create a Bindgroup for our Texture
+				let texture_bind_group_layout = my_webgpu_render_pipeline.getBindGroupLayout(0);
+					let texture_bind_group = my_webgpu_device().createBindGroup({
+						layout:		texture_bind_group_layout,
+						entries:	[{binding:0,resource: texture_view},{binding:1,resource:webgpu_sampler}]
+					});
+
+					let my_f = async () =>{
+				let conway_command_encoder = await my_webgpu_device().createCommandEncoder();
+
+					//Run Conway GOL Simpulation
+					let conway_compute_pass_encoder =  conway_command_encoder.beginComputePass();
+						conway_compute_pass_encoder.setPipeline(cw_step_pipeline);
+						conway_compute_pass_encoder.setBindGroup(0,get_bind());
+						conway_compute_pass_encoder.dispatchWorkgroups(V,K,Z);
+					conway_compute_pass_encoder.end();
+
+					//Copy Simulation Result into a Texture Buffer
+					let conway_to_texture_pass_encoder =  conway_command_encoder.beginComputePass();
+						conway_to_texture_pass_encoder.setPipeline(cw_step_pipelineii);
+						conway_to_texture_pass_encoder.setBindGroup(0,conway_to_texture_BG);
+						conway_to_texture_pass_encoder.dispatchWorkgroups(V,K,Z);
+					conway_to_texture_pass_encoder.end();
+
+					//Copy	Texture-Buffer into a Texture -primative
+					conway_command_encoder.copyBufferToTexture({buffer: conway_texture_buffer(), bytesPerRow: w * Int32Array.BYTES_PER_ELEMENT},{texture: texture},{width: w, height: h});
+
+					my_webgpu_device().queue.submit([conway_command_encoder.finish()]);
+					parity = !parity;
+					};
+
+					
+					my_f();
+
+					let my_webgpu_frame = function(){
+					my_webgpu_render_pass_descriptor.colorAttachments[0].view = context.getCurrentTexture().createView();
+					let my_webgpu_command_encoder = my_webgpu_device().createCommandEncoder();
+						let my_webgpu_render_pass=my_webgpu_command_encoder.beginRenderPass(my_webgpu_render_pass_descriptor);
+							my_webgpu_render_pass.setPipeline(my_webgpu_render_pipeline);
+							my_webgpu_render_pass.setBindGroup(0,texture_bind_group);
+							my_webgpu_render_pass.setVertexBuffer(0,position_buffer);
+							my_webgpu_render_pass.draw(4);
+					if(true)
+					my_f();
+				my_webgpu_render_pass.end();
+					
+				my_webgpu_device().queue.submit([my_webgpu_command_encoder.finish()]);
+						}
+
+
+			console.log("here");
+					return my_webgpu_frame;
+
+		}
+
+		constructor(){
+		}
+
+	}
+
+
+
+	class CONWAY_WIDGIT extends HTMLElement{
+		#canvas	= document.createElement('canvas');
+		#gol;
+
+		get #root(){return this.shadowRoot}
+
+		constructor(){
+			super()
+			
+			this.attachShadow({mode:'open'});
+			let my_canvas	= this.#canvas
+			my_canvas.setAttribute('height',h);
+			my_canvas.setAttribute('width',w);
+			this.#root.appendChild(my_canvas);
+		}
+		connectedCallback(){
+			console.log('connected');
+			let g = new GPU_GOL;
+			(async ()=>{
+					let frame = await g.setup(this.#canvas)
+
+					let Frame = function*(){while(true) yield frame;};
+					
+				/*This Function takes a way of queueing via function call (read: self.requestAnimationFrame) R, and wrappes it around a frame generating function */
+			let request_based_loop = (async (fg,guard,R)=>{
+				let my_frames = await  fg();
+					var loop_combi = ( async (f)=>{
+						if(guard()){
+							let frame = await my_frames.next();
+							if(!frame.done)
+								R(()=>{frame.value();f()});
+							}
+						});
+				var looper =  () => loop_combi(looper);
+				return looper;
+				});
+
+				(await request_based_loop(Frame,()=>true,self.requestAnimationFrame))();
+
+			})();
+
+			console.log("here");
+
+
+
+		}
+
+		disconnectedCallback(){
+
+		}
+	};
+
+	self.customElements.define('conway-widgit',CONWAY_WIDGIT);
+
+
+//console.log(amount_combinator(w,h)(Uint8Array));
+
+
+</script>
+
+
+<h1>Conway's Game-Of-Life WebGPU Test</h1>
+<div>
+	<conway-widgit/>
+</div>
+</html>
