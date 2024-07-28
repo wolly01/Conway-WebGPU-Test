@@ -115,7 +115,7 @@ struct conway_config_struct {
 
 fn get_key(a :u32, b : u32) -> u32 { return a * conway_config.height + b;}
 fn life_at_key(k: u32) -> u32 {return conway_table_in.underlying_buffer[k];}
-fn life_around(a :u32, b : u32) -> u32 {return life_at_key(get_key(a-1,b-1)) + life_at_key(get_key(a,b-1)) + life_at_key(get_key(a+1,b-1)) + life_at_key(get_key(a+1,b)) + life_at_key(get_key(a,b+1)) + life_at_key(get_key(a-1,b+1)) + life_at_key(get_key(a-1,b));}
+fn life_around(a :u32, b : u32) -> u32 {return life_at_key(get_key(a-1,b-1)) + life_at_key(get_key(a,b-1)) + life_at_key(get_key(a+1,b-1)) + life_at_key(get_key(a+1,b)) + life_at_key(get_key(a+1,b+1)) + life_at_key(get_key(a,b+1)) + life_at_key(get_key(a-1,b+1)) + life_at_key(get_key(a-1,b));}
 fn rgba(r:u32,g:u32,b:u32,a:u32)->u32 {return (r*255) + g*65025 + b* 16581375 + a * 16777216;}
 fn v(r:u32)->u32 {return r;}
 @compute @workgroup_size(${v},${k},${z})
