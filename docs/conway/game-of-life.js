@@ -16,7 +16,7 @@ export class gol_state_of_stack{
 		conway_buffer_a;
 		conway_buffer_b;
 	
-		pipeline;
+		cw_step_pipeline;
 		pipelinei;
 	
 		get active_buffer(){return (this.parity) ? this.conway_buffer_a : this.conway_buffer_b;};
@@ -55,7 +55,7 @@ export class gol_state_of_stack{
 			this.pipeline 			= my_webgpu_device().createComputePipeline(cw_step_pipeline_config);
 			this.pipelinei 			= my_webgpu_device().createComputePipeline(cw_to_txb_pipeline_config);
 			
-			const cw_step_pipeline = ()=>this.pipeline;
+			const cw_step_pipeline = ()=>this.cw_step_pipeline;
 				
 		}
 	

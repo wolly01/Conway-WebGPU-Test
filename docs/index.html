@@ -7,10 +7,13 @@
 </head>
 <html>
 <script type="module">
+import * as CW_UTILS 		from "./conway/utils.js";
 import * as Stack 		from "./conway/stack.js";
 import * as GOL_CODE	from "./conway/WGSL/Conway.js";
 import * as TX_CODE		from "./conway/WGSL/Texture.js";
 import * as GOL 		from "./conway/game-of-life.js";
+
+// Currently these numbers are majic numbers for the workgroups, to be refactored later into more robust code.
 var v = 16;
 var V =	32;
 var k = 16;
@@ -19,9 +22,6 @@ var z = 1;
 var Z = 1;
 let w = v * V;
 let h = k * K;
-const amount_combinator = (...a)=> (T) => a.reduce((a,c)=> a*c) * (T.BYTES_PER_ELEMENT) ** (a.length);
-
-
 			//	Set-Up the shader module
 			let [vertex_location] = [0];
 				let vertex_entry_point_identifier	= "vertex_main";
@@ -51,7 +51,7 @@ class texture_state_of_stack{
 			this.texture_buffer = await my_webgpu_device().createBuffer(unmapped_conway_buffer_config);
 
 			let number_of_vertexes = 4;
-				let position_buffer_config = {size: amount_combinator(4)(Float32Array) * number_of_vertexes, usage:GPUBufferUsage.VERTEX, mappedAtCreation: true};
+				let position_buffer_config = {size: CW_UTILS.amount_combinator(4)(Float32Array) * number_of_vertexes, usage:GPUBufferUsage.VERTEX, mappedAtCreation: true};
 				let position_buffer=my_webgpu_device().createBuffer(position_buffer_config);
 
 
@@ -63,20 +63,35 @@ class texture_state_of_stack{
 	}
 }
 
+// Small class to encapsulate setting up and managing the canvas element
+class conway_canvas {
+	#canvas;
+	get canvas(){return this.#canvas};
+	set canvas(v){this.#canvas = v};
+
+	constructor(){
+
+	}
+
+	setup(){
+
+	}
+};
 
 
 
 	class GPU_GOL{
-		#stack			=	new	Stack.stack;
-		#state			=	new GOL.gol_state_of_stack(this.#stack,w,h);
-		#texture_state	=	new	texture_state_of_stack(this.#stack);
-
+		#stack;			//=	new	Stack.stack;
+		#state			;
+		#texture_state	;
 		async setup(canvas){
 			let context	=	canvas.getContext("webgpu"); 
 			let parity = true;
 			const state = ()=>this.#state;
 			const tex_state = ()=>this.#texture_state;
 			const stack = ()=> this.#stack;// {let s = this.#stack; return ({	get["gpu"](){return s.gpu},	get["device"](){return s.device},	get["adaptor"](){return s.adapter},	 get["adapter"](){return this.adaptor} })};
+
+			console.log(this.#stack)
 
 			const	my_webgpu_gpu		=	()=> stack().gpu;
 			const	my_webgpu_device	=	()=> stack().device;
@@ -88,7 +103,7 @@ class texture_state_of_stack{
 			const	conway_texture_buffer = ()=>tex_state().texture_buffer;
 
 			await	stack().request();
-
+			console.log(this.#stack)
 					// Seting up the canvas_context
 					let webgpu_swapchain_format = "bgra8unorm";
 					let webgpu_context_config={device:my_webgpu_device(), format:webgpu_swapchain_format, usage:GPUTextureUsage.RENDER_ATTACHMENT, alphaMode:"premultiplied"}
@@ -98,12 +113,13 @@ class texture_state_of_stack{
 				let conway_module_config = {code: conway_code()};
 				let conway_module = await my_webgpu_device().createShaderModule(conway_module_config);
 
-
+console.log("here")
 			await	state().request(conway_module);
+			console.log("there")
 			await	tex_state().request();
 				const 	my_texture_config = ()=>({width: w,height: h});
 
-			let amount = amount_combinator(my_texture_config().width,my_texture_config().height)(Uint8Array)
+			let amount = CW_UTILS.amount_combinator(my_texture_config().width,my_texture_config().height)(Uint8Array)
 			console.log(amount);
 
 			let	cw_step_pipeline = state().pipeline;
@@ -156,7 +172,7 @@ class texture_state_of_stack{
 				let my_webgpu_render_pipeline=my_webgpu_device().createRenderPipeline(my_webgpu_render_pipeline_config);
 				//Set up a webgpu buffer to store our vertex-data
 				let number_of_vertexes = 4;
-				let position_buffer_config = {size: amount_combinator(4)(Float32Array) * number_of_vertexes, usage:GPUBufferUsage.VERTEX, mappedAtCreation: true};
+				let position_buffer_config = {size: CW_UTILS.amount_combinator(4)(Float32Array) * number_of_vertexes, usage:GPUBufferUsage.VERTEX, mappedAtCreation: true};
 				let position_buffer=my_webgpu_device().createBuffer(position_buffer_config);
 				new Float32Array(position_buffer.getMappedRange()).set([[-1,-1,0,1],[1,-1,0,1],[-1,1,0,1],[1,1,0,1]].flat());
 					position_buffer.unmap();
@@ -231,15 +247,20 @@ class texture_state_of_stack{
 
 		}
 
-		constructor(){
+		constructor(stack){
+			this.#stack = stack;
+			this.#state = new GOL.gol_state_of_stack(this.#stack,w,h);
+			this.#texture_state=	new	texture_state_of_stack(this.#stack);
 		}
 
 	}
 
 
-
+	// The complete self-contained widget to be included as a single custome element into the HTML.
 	class CONWAY_WIDGIT extends HTMLElement{
-		#canvas	= document.createElement('canvas');
+		#stack			=	new	Stack.stack;
+		#canvas			= new conway_canvas;
+		
 		#gol;
 
 		get #root(){return this.shadowRoot}
@@ -248,16 +269,18 @@ class texture_state_of_stack{
 			super()
 			
 			this.attachShadow({mode:'open'});
-			let my_canvas	= this.#canvas
+			let my_canvas	= document.createElement('canvas');
+			this.#canvas.canvas = my_canvas;
 			my_canvas.setAttribute('height',h);
 			my_canvas.setAttribute('width',w);
 			this.#root.appendChild(my_canvas);
 		}
 		connectedCallback(){
 			console.log('connected');
-			let g = new GPU_GOL;
+			console.log(this.#stack);
+			let g = new GPU_GOL(this.#stack);
 			(async ()=>{
-					let frame = await g.setup(this.#canvas)
+					let frame = await g.setup(this.#canvas.canvas)
 
 					let Frame = function*(){while(true) yield frame;};
 					
@@ -293,7 +316,7 @@ class texture_state_of_stack{
 	self.customElements.define('conway-widgit',CONWAY_WIDGIT);
 
 
-//console.log(amount_combinator(w,h)(Uint8Array));
+//console.log(CW_UTILS.amount_combinator(w,h)(Uint8Array));
 
 
 </script>
