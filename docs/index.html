@@ -12,6 +12,7 @@ import * as Stack 		from "./conway/stack.js";
 import * as GOL_CODE	from "./conway/WGSL/Conway.js";
 import * as TX_CODE		from "./conway/WGSL/Texture.js";
 import * as GOL 		from "./conway/game-of-life.js";
+import * as TX 		from "./conway/texture.js";
 
 // Currently these numbers are majic numbers for the workgroups, to be refactored later into more robust code.
 var v = 16;
@@ -33,35 +34,7 @@ let h = k * K;
 				function conway_code(){return GOL_CODE.cw_code(16,16,1,conway_step_entry_point_identifier,cw_to_tx_entry_point_identifier);
 				}
 
-				console.log(conway_code());
-class texture_state_of_stack{
-	#stack;
 
-	texture_buffer;
-	position_buffer;
-	async	request(){
-		const stack = ()=> this.#stack;
-			const	texture=()=>this.texture;
-
-
-			const	my_webgpu_gpu		=	()=> stack().gpu;
-			const	my_webgpu_device	=	()=> stack().device;
-			const	my_webgpu_adaptor	=	()=> stack().adaptor;
-			let [mapped_conway_buffer_config,unmapped_conway_buffer_config] = ((x)=> [{...x,mappedAtCreation: true},{...x,mappedAtCreation: false}])({size: 4 * w*h,usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC})
-			this.texture_buffer = await my_webgpu_device().createBuffer(unmapped_conway_buffer_config);
-
-			let number_of_vertexes = 4;
-				let position_buffer_config = {size: CW_UTILS.amount_combinator(4)(Float32Array) * number_of_vertexes, usage:GPUBufferUsage.VERTEX, mappedAtCreation: true};
-				let position_buffer=my_webgpu_device().createBuffer(position_buffer_config);
-
-
-	}
-
-
-	constructor(stack){
-		this.#stack	= stack;
-	}
-}
 
 // Small class to encapsulate setting up and managing the canvas element
 class conway_canvas {
@@ -77,8 +50,6 @@ class conway_canvas {
 
 	}
 };
-
-
 
 	class GPU_GOL{
 		#stack;			//=	new	Stack.stack;
@@ -103,7 +74,6 @@ class conway_canvas {
 			const	conway_texture_buffer = ()=>tex_state().texture_buffer;
 
 			await	stack().request();
-			console.log(this.#stack)
 					// Seting up the canvas_context
 					let webgpu_swapchain_format = "bgra8unorm";
 					let webgpu_context_config={device:my_webgpu_device(), format:webgpu_swapchain_format, usage:GPUTextureUsage.RENDER_ATTACHMENT, alphaMode:"premultiplied"}
@@ -250,7 +220,7 @@ console.log("here")
 		constructor(stack){
 			this.#stack = stack;
 			this.#state = new GOL.gol_state_of_stack(this.#stack,w,h);
-			this.#texture_state=	new	texture_state_of_stack(this.#stack);
+			this.#texture_state=	new	TX.texture_state_of_stack(this.#stack,w,h);
 		}
 
 	}
