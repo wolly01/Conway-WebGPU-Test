@@ -7,14 +7,14 @@
 </head>
 <html>
 <script type="module">
-import * as Stack from "./conway/stack.js";
+import * as Stack 		from "./conway/stack.js";
 import * as GOL_CODE	from "./conway/WGSL/Conway.js";
-import * as TX_CODE	from "./conway/WGSL/Texture.js";
-
+import * as TX_CODE		from "./conway/WGSL/Texture.js";
+import * as GOL 		from "./conway/game-of-life.js";
 var v = 16;
-var V =	16;
+var V =	32;
 var k = 16;
-var K = 16;
+var K = 32;
 var z = 1;
 var Z = 1;
 let w = v * V;
@@ -30,80 +30,10 @@ const amount_combinator = (...a)=> (T) => a.reduce((a,c)=> a*c) * (T.BYTES_PER_E
 
 				let conway_step_entry_point_identifier = `conway_step_entry_point_identifier`;
 				let cw_to_tx_entry_point_identifier = `my_fnii`
-class gol_state_of_stack{
-// Setting up the code for the conway_operations
+				function conway_code(){return GOL_CODE.cw_code(16,16,1,conway_step_entry_point_identifier,cw_to_tx_entry_point_identifier);
+				}
 
-static get conway_code(){return GOL_CODE.cw_code(v,k,z,conway_step_entry_point_identifier,cw_to_tx_entry_point_identifier);
-	}
-	#stack;
-
-	//Buffers
-	config_buffer;
-
-	//dimensions
-	x	=	w;
-	y	=	h;
-
-
-	parity=false;
-	conway_buffer_a;
-	conway_buffer_b;
-
-	pipeline;
-	pipelinei;
-
-	get active_buffer(){return (this.parity) ? this.conway_buffer_a : this.conway_buffer_b;};
-
-	async request(cw_module){
-	
-	
-	
-	
-		const stack = ()=> this.#stack;
-			const	my_webgpu_gpu		=	()=> stack().gpu;
-			const	my_webgpu_device	=	()=> stack().device;
-			const	my_webgpu_adaptor	=	()=> stack().adaptor;
-		
-		const	state	=	()=>this;
-
-		const	conway_buffer_a		=	()=>state().conway_buffer_a;
-		const	conway_buffer_b		=	()=>state().conway_buffer_b;
-		const	config_buffer		=	()=>state().config_buffer;
-		const 	x 	=()=>this.x;
-		const	y	=()=>this.y;
-		let 	amount = ()=>amount_combinator(x(),y())(Uint8Array)
-
-
-		state().config_buffer = await this.#stack.device.createBuffer({size: amount_combinator(2)(Uint32Array),mappedAtCreation: true,usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC});
-			//TODO -> possibly refactor from a storage buffer to something else
-			let mapped_config = config_buffer().getMappedRange(); 
-					new Uint32Array(mapped_config).set([x(),y()]);
-					config_buffer().unmap();
-		let [mapped_conway_buffer_config,unmapped_conway_buffer_config] = ((x)=> [{...x,mappedAtCreation: true},{...x,mappedAtCreation: false}])({size: 4 * amount(),usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC})
-		state().conway_buffer_a			= await my_webgpu_device().createBuffer(mapped_conway_buffer_config);
-		state().conway_buffer_b 		= await my_webgpu_device().createBuffer(unmapped_conway_buffer_config);
-		let mapped_texture_buffer = conway_buffer_a().getMappedRange();
-				new Uint32Array(mapped_texture_buffer).set(Uint32Array.from ({length: amount()},(e,i,a) => (Math.random() >= 0.7)));
-				conway_buffer_a().unmap();
-
-		let [cw_step_pipeline_config,cw_to_txb_pipeline_config] 	= [conway_step_entry_point_identifier,cw_to_tx_entry_point_identifier].map(e => ({layout: `auto`, compute: {module: cw_module, entryPoint: e}}));
-
-		this.pipeline 			= my_webgpu_device().createComputePipeline(cw_step_pipeline_config);
-		this.pipelinei 			= my_webgpu_device().createComputePipeline(cw_to_txb_pipeline_config);
-		
-		const cw_step_pipeline = ()=>this.pipeline;
-			
-	}
-
-	destroy(){
-		["conway_buffer_a","conway_buffer_b","pipeline","pipelinei"].forEach(s => this[s]?.destroy());
-	}
-	constructor(stack){
-		this.#stack	= stack;
-	}
-
-}
-
+				console.log(conway_code());
 class texture_state_of_stack{
 	#stack;
 
@@ -138,7 +68,7 @@ class texture_state_of_stack{
 
 	class GPU_GOL{
 		#stack			=	new	Stack.stack;
-		#state			=	new gol_state_of_stack(this.#stack);
+		#state			=	new GOL.gol_state_of_stack(this.#stack,w,h);
 		#texture_state	=	new	texture_state_of_stack(this.#stack);
 
 		async setup(canvas){
@@ -164,8 +94,8 @@ class texture_state_of_stack{
 					let webgpu_context_config={device:my_webgpu_device(), format:webgpu_swapchain_format, usage:GPUTextureUsage.RENDER_ATTACHMENT, alphaMode:"premultiplied"}
 					context.configure(webgpu_context_config);
 
-			const conway_code = gol_state_of_stack.conway_code;
-				let conway_module_config = {code: conway_code};
+			//const conway_code = GOL.gol_state_of_stack.conway_code;
+				let conway_module_config = {code: conway_code()};
 				let conway_module = await my_webgpu_device().createShaderModule(conway_module_config);
 
 
