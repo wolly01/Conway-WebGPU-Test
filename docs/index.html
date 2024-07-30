@@ -140,12 +140,7 @@ console.log("here")
 				let my_webgpu_pipeline_layout	= `auto`
 				let my_webgpu_render_pipeline_config={layout:my_webgpu_pipeline_layout, vertex: my_webgpu_vertex_state, fragment:my_webgpu_fragment_state,primitive:{topology: "triangle-strip"}, depthStencil:{format: my_webgpu_depth_format,depthWriteEnabled: true, depthCompare:"less"}, unclippedDepth:true};
 				let my_webgpu_render_pipeline=my_webgpu_device().createRenderPipeline(my_webgpu_render_pipeline_config);
-				//Set up a webgpu buffer to store our vertex-data
-				let number_of_vertexes = 4;
-				let position_buffer_config = {size: CW_UTILS.amount_combinator(4)(Float32Array) * number_of_vertexes, usage:GPUBufferUsage.VERTEX, mappedAtCreation: true};
-				let position_buffer=my_webgpu_device().createBuffer(position_buffer_config);
-				new Float32Array(position_buffer.getMappedRange()).set([[-1,-1,0,1],[1,-1,0,1],[-1,1,0,1],[1,1,0,1]].flat());
-					position_buffer.unmap();
+				let position_buffer=tex_state().position_buffer;
 
 //Create Our Texture and Binding
 					// Create the texture object					
