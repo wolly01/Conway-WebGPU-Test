@@ -1,34 +1,15 @@
 <!DOCTYPE html>
 <!-- A Very Basic CSS-->
-<style>
-	div>* {
-		margin-left: auto;
-		margin-right: auto;
-	}
-	div {
-		display: flex;
-		align-items: center;
-	}
-	h1 {
-		text-align: center;
-	}
-	/*Basic dark-mode support*/
-	@media (prefers-color-scheme: dark){
-		body{
-		background-color: black;
-		color: white;
-		}
-	}
-</style>
-
+<link rel="stylesheet" href="./style.css">
 <head>
 <!--Tell browsers to stop looking for non-existant 'favicon.ico' file (they shouldn't be doing it anyway but hey ho)-->
 <link rel="icon" href="data:,">
 </head>
 <html>
-<script>
-
-
+<script type="module">
+import * as Stack from "/conway/stack.js";
+import * as GOL_CODE	from "/conway/WGSL/Conway.js";
+import * as TX_CODE	from "/conway/WGSL/Texture.js";
 
 var v = 16;
 var V =	16;
@@ -45,122 +26,14 @@ const amount_combinator = (...a)=> (T) => a.reduce((a,c)=> a*c) * (T.BYTES_PER_E
 			let [vertex_location] = [0];
 				let vertex_entry_point_identifier	= "vertex_main";
 				let fragment_entry_point_identifier = "fragment_main";
-				let shader_module_code 			= 
-`
-@group(0)	@binding(1) var Sampler :	sampler;
-@group(0)	@binding(0) var Texture	:	texture_2d<f32>;
+				let shader_module_code 			= TX_CODE.texture_code(vertex_entry_point_identifier,vertex_location,fragment_entry_point_identifier);
 
-struct vertex_stage_struct {
-	@location(${vertex_location}) position_data : vec4<f32>,
-}
-struct fragment_stage_struct {
-	@builtin(position) 				position_data 			: vec4<f32>,
-	@location(0)					other_position_data		:	vec2f
-}
-@vertex
-fn ${vertex_entry_point_identifier}(input : vertex_stage_struct) -> fragment_stage_struct {
-	var output : fragment_stage_struct;
-	output.position_data 	=  input.position_data;
-	output.other_position_data 	=  vec2<f32>(input.position_data[0],input.position_data[1]);
-	return output;
-}
-@fragment
-fn ${fragment_entry_point_identifier}(input:	fragment_stage_struct) -> @location(0) vec4<f32> {
-	return vec4<f32>(0,0,0,0) + textureSample(Texture,Sampler,vec2f( .5 *(1 + 	input.other_position_data[0]), .5 *(1 + input.other_position_data[1])) );
-};
-
-`;
-
-
-
-class stack{
-	#gpu;
-	#adaptor;
-	#device;
-
-
-	get gpu(){return this.#gpu}
-	get adaptor(){return this.#adaptor;} // for the brits
-	get adapter(){return this.adaptor;} // for the americans / api purists
-	get device(){return this.#device;}
-
-	async request(){
-		this.#gpu		=	self?.navigator?.gpu;
-			this.#adaptor 	= 	await (this.#gpu)?.requestAdapter();
-				this.#device	=	await	(this.#adaptor)?.requestDevice();
-	}
-
-}
+				let conway_step_entry_point_identifier = `conway_step_entry_point_identifier`;
+				let cw_to_tx_entry_point_identifier = `my_fnii`
 class gol_state_of_stack{
 // Setting up the code for the conway_operations
 
-static get conway_code(){return `
-@group(0) @binding(0) var<storage, read_write> conway_config	:  conway_config_struct;
-@group(0) @binding(1) var<storage, read_write> conway_table_in	:  conway_struct;
-@group(0) @binding(2) var<storage, read_write> conway_table_out	:  conway_struct;
-@group(0) @binding(3) var<storage, read_write> texture_data		:  texture_struct;
-
-struct texture_struct {
-	underlying_buffer	: 	array<u32>,
-}
-
-struct conway_struct {
-	underlying_buffer	: 	array<u32>,
-}
-
-struct conway_config_struct {
-	width				:	u32,
-	height				:	u32,
-}
-
-fn get_key(a :u32, b : u32) -> u32 { return a * conway_config.height + b;}
-fn life_at_key(k: u32) -> u32 {return conway_table_in.underlying_buffer[k];}
-fn life_around(a :u32, b : u32) -> u32 {return life_at_key(get_key(a-1,b-1)) + life_at_key(get_key(a,b-1)) + life_at_key(get_key(a+1,b-1)) + life_at_key(get_key(a+1,b)) + life_at_key(get_key(a+1,b+1)) + life_at_key(get_key(a,b+1)) + life_at_key(get_key(a-1,b+1)) + life_at_key(get_key(a-1,b));}
-fn rgba(r:u32,g:u32,b:u32,a:u32)->u32 {return (r*255) + g*65025 + b* 16581375 + a * 16777216;}
-fn v(r:u32)->u32 {return r;}
-@compute @workgroup_size(${v},${k},${z})
-	fn my_fn(
-				@builtin(local_invocation_id)		local_invocation_id		:	vec3<u32>,
-				@builtin(local_invocation_index)	local_invocation_index	:	u32,
-				@builtin(global_invocation_id)		global_invocation_id	:	vec3<u32>,
-				@builtin(workgroup_id)				workgroup_id			:	vec3<u32>,
-				@builtin(num_workgroups)			num_workgroups			:	vec3<u32>
-			){
-				var I 	= 	global_invocation_id.x;
-				var J	=	global_invocation_id.y;
-				var K	=	global_invocation_id.z;
-
-				
-
-				var key = get_key(I,J);
-				var current_life = life_at_key(key);
-				var current_surround = life_around(I,J);
-
-				var life_next = current_surround == 3 || (bool(current_life) && current_surround == 2);
-				conway_table_out.underlying_buffer[key] = u32(life_next);
-		
-		
-
-	}
-@compute @workgroup_size(${v},${k},${z})
-	fn my_fnii	(
-					@builtin(global_invocation_id) global_invocation_id : vec3<u32>,
-					@builtin(local_invocation_id)	local_invocation_id		: vec3<u32>
-				){
-		// Note the boundries give this block control only over the interior, not the boundry of the game.
-		for(var i : u32 = 0;	i < 1;	i ++){
-			for(var j	:	u32 = 0;j < 1; j ++){
-				var I 	= 	global_invocation_id.x;
-				var J	=	global_invocation_id.y;
-				var k = get_key(I,J);
-				var x = conway_table_out.underlying_buffer[k];
-				texture_data.underlying_buffer[k] = rgba(x,u32(0),u32(x),u32(255));
-
-			}
-		}
-
-	}
-				`
+static get conway_code(){return GOL_CODE.cw_code(v,k,z,conway_step_entry_point_identifier,cw_to_tx_entry_point_identifier);
 	}
 	#stack;
 
@@ -213,7 +86,7 @@ fn v(r:u32)->u32 {return r;}
 				new Uint32Array(mapped_texture_buffer).set(Uint32Array.from ({length: amount()},(e,i,a) => (Math.random() >= 0.7)));
 				conway_buffer_a().unmap();
 
-		let [cw_step_pipeline_config,cw_to_txb_pipeline_config] 	= [`my_fn`,`my_fnii`].map(e => ({layout: `auto`, compute: {module: cw_module, entryPoint: e}}));
+		let [cw_step_pipeline_config,cw_to_txb_pipeline_config] 	= [conway_step_entry_point_identifier,cw_to_tx_entry_point_identifier].map(e => ({layout: `auto`, compute: {module: cw_module, entryPoint: e}}));
 
 		this.pipeline 			= my_webgpu_device().createComputePipeline(cw_step_pipeline_config);
 		this.pipelinei 			= my_webgpu_device().createComputePipeline(cw_to_txb_pipeline_config);
@@ -223,7 +96,7 @@ fn v(r:u32)->u32 {return r;}
 	}
 
 	destroy(){
-		["#device","#adaptor"].forEach(s => this[s]?.destroy());
+		["conway_buffer_a","conway_buffer_b","pipeline","pipelinei"].forEach(s => this[s]?.destroy());
 	}
 	constructor(stack){
 		this.#stack	= stack;
@@ -264,7 +137,7 @@ class texture_state_of_stack{
 
 
 	class GPU_GOL{
-		#stack			=	new	stack;
+		#stack			=	new	Stack.stack;
 		#state			=	new gol_state_of_stack(this.#stack);
 		#texture_state	=	new	texture_state_of_stack(this.#stack);
 

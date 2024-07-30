@@ -1,0 +1,18 @@
+div>* {
+	margin-left: auto;
+	margin-right: auto;
+}
+div {
+	display: flex;
+	align-items: center;
+}
+h1 {
+	text-align: center;
+}
+/*Basic dark-mode support*/
+@media (prefers-color-scheme: dark){
+	body{
+	background-color: black;
+	color: white;
+	}
+}
