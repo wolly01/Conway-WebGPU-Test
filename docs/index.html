@@ -55,7 +55,8 @@ class conway_canvas {
 		#stack;			//=	new	Stack.stack;
 		#state			;
 		#texture_state	;
-		async setup(canvas){
+		async setup(canvas,config){
+			let [X,Y] = [config.width,config.height];
 			let context	=	canvas.getContext("webgpu"); 
 			let parity = true;
 			const state = ()=>this.#state;
@@ -82,11 +83,9 @@ class conway_canvas {
 			//const conway_code = GOL.gol_state_of_stack.conway_code;
 				let conway_module_config = {code: conway_code()};
 				let conway_module = await my_webgpu_device().createShaderModule(conway_module_config);
-
-console.log("here")
 			await	state().request(conway_module);
 			console.log("there")
-			await	tex_state().request();
+			await	tex_state().request(config);
 				const 	my_texture_config = ()=>({width: w,height: h});
 
 			let amount = CW_UTILS.amount_combinator(my_texture_config().width,my_texture_config().height)(Uint8Array)
@@ -143,17 +142,9 @@ console.log("here")
 				let position_buffer=tex_state().position_buffer;
 
 //Create Our Texture and Binding
-					// Create the texture object					
-					let texture_data = new Uint8Array(w * h * 4);
-						texture_data.set(Array.from({length: w * h}).map(z => [255,255,0,255]).flat());	//	Debug Texture Is Yellow.
-					let texture_config = {size: [w,h], format:"rgba8unorm", usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST};
-					let texture  = my_webgpu_device().createTexture(texture_config);
-					let texture_view = texture.createView();
-						my_webgpu_device().queue.writeTexture(
-							{texture},texture_data,{bytesPerRow: h * 4 * 1},{width:w,height:h}
-					)
-					//Create a Sampler
-					let webgpu_sampler = my_webgpu_device().createSampler();
+					let texture  =	tex_state().texture;
+					let texture_view = tex_state().view;
+					let webgpu_sampler = tex_state().sampler;
 
 
 
@@ -245,7 +236,7 @@ console.log("here")
 			console.log(this.#stack);
 			let g = new GPU_GOL(this.#stack);
 			(async ()=>{
-					let frame = await g.setup(this.#canvas.canvas)
+					let frame = await g.setup(this.#canvas.canvas,{width: w, height:h})
 
 					let Frame = function*(){while(true) yield frame;};
 					
